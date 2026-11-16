@@ -10,10 +10,10 @@ class InsufficientFundsError(Exception): pass
 
 def create_order(session, user_id, product_id):
     with session.begin():
-        user = session.get(User, user_id)
+        user = session.get(User, user_id,  with_for_update=True)
         if user is None:
             raise LookupError("Пользователь не найден")
-        product = session.get(Product, product_id)
+        product = session.get(Product, product_id, with_for_update=True)
         if product is None:
             raise LookupError("Товар не найден")
         price = product.price
