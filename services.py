@@ -3,17 +3,21 @@
 Против КОНКУРЕНЦИИ — нет. Это вы и исследуете. Правите только этот файл.
 """
 from sqlalchemy import update
+from sqlalchemy.exc import OperationalError
 from models import User, Product, Order
+from exceptions import OutOfStockError, InsufficientFundsError, ConflictError
 
-class OutOfStockError(Exception): pass
-class InsufficientFundsError(Exception): pass
 
 def create_order(session, user_id, product_id):
     with session.begin():
-        user = session.get(User, user_id)
+        try:
+            user = session.get(User, user_id, with_for_update={"nowait": True})
+            product = session.get(Product, product_id, with_for_update={"nowait": True})
+        except OperationalError as e:
+            raise ConflictError("Строка занята другой транзакцией") from e
+
         if user is None:
             raise LookupError("Пользователь не найден")
-        product = session.get(Product, product_id)
         if product is None:
             raise LookupError("Товар не найден")
         price = product.price
