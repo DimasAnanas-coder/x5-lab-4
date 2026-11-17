@@ -10,6 +10,7 @@ from exceptions import OutOfStockError, InsufficientFundsError, ConflictError
 
 def create_order(session, user_id, product_id):
     with session.begin():
+        ## Третий вариат: с помощью ошибки ConflictError
         try:
             user = session.get(User, user_id, with_for_update={"nowait": True})
             product = session.get(Product, product_id, with_for_update={"nowait": True})
