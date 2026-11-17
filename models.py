@@ -6,17 +6,19 @@ from db import Base
 
 class User(Base):
     __tablename__ = "users"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True)
-    balance: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), 
-        default=0, 
+    __table_args__ = (
         CheckConstraint("balance >= 0", name="balance_is_positive"),
     )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True)
+    balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     orders: Mapped[list["Order"]] = relationship(back_populates="user")
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="stock_is_positive"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
