@@ -2,25 +2,43 @@
 Одна транзакция, откат при сбое — против СБОЯ он корректен.
 Против КОНКУРЕНЦИИ — нет. Это вы и исследуете. Правите только этот файл.
 """
-from sqlalchemy import select, update
+from sqlalchemy import update
+from sqlalchemy.exc import OperationalError
 from models import User, Product, Order
+from exceptions import OutOfStockError, InsufficientFundsError, ConflictError
 
-class OutOfStockError(Exception): pass
-class InsufficientFundsError(Exception): pass
 
 def create_order(session, user_id, product_id):
     with session.begin():
-        user = session.get(User, user_id)
+        ## Третий вариат: с помощью ошибки ConflictError
+        try:
+            user = session.get(User, user_id, with_for_update={"nowait": True})
+            product = session.get(Product, product_id, with_for_update={"nowait": True})
+        except OperationalError as e:
+            raise ConflictError("Строка занята другой транзакцией") from e
+
         if user is None:
             raise LookupError("Пользователь не найден")
-        product = session.get(Product, product_id)
         if product is None:
             raise LookupError("Товар не найден")
         price = product.price
-        if product.stock <= 0:
+
+        stock_result = session.execute(
+            update(Product)
+            .where(Product.id == product_id, Product.stock > 0)
+            .values(stock=Product.stock - 1),
+            execution_options={"synchronize_session": False},
+        )
+        if stock_result.rowcount != 1:
             raise OutOfStockError("Товара нет в наличии")
-        if user.balance < price:
+
+        balance_result = session.execute(
+            update(User)
+            .where(User.id == user_id, User.balance >= price)
+            .values(balance=User.balance - price),
+            execution_options={"synchronize_session": False},
+        )
+        if balance_result.rowcount != 1:
             raise InsufficientFundsError("Недостаточно средств")
-        user.balance -= price
-        product.stock -= 1
+
         session.add(Order(user_id=user_id, product_id=product_id, amount=price))
